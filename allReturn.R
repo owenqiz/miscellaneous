@@ -1,3 +1,4 @@
+library(ggplot2)
 
 allReturn <- function(p = 25, n){
   # see excel sheet for two-stage formula
