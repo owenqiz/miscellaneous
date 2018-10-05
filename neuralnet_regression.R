@@ -1,4 +1,3 @@
-#Question 2
 # part (a)
 set.seed(1)
 n <- 60
