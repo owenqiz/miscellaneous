@@ -1,0 +1,70 @@
+---
+title: "Plot Area Under the Curve with ggplot2"
+author: "Qi"
+date: "2019/3/4"
+output: html_document
+---
+
+This is a very short post for a summary of the [ blog post](http://t-redactyl.io/blog/2016/03/creating-plots-in-r-using-ggplot2-part-9-function-plots.html), I will make a quick function for myself to graph some area under the curve for convenience.
+
+1. Create your own function
+
+If like well-known curve, it is already defined in `R` such as `dnorm`, otherwise you can define your own function.
+For simplicity, I will only use standard normal (`dnorm`) (may update in the future).
+
+This is a alpha version, some simplification will made in the future,
+
+```{r}
+library(ggplot2)
+
+auc <- function(limit, lower.tail = TRUE, between = TRUE){
+  n <- length(limit)
+  if (n == 1){
+  if (lower.tail){
+  p <- ggplot(data = NULL, aes(c(-3.8,3.8))) + theme_bw() + 
+    geom_area(stat = "function", fun = dnorm, fill = "#00998a", xlim = c(-3.5, limit), alpha = .75) +
+    geom_area(stat = "function", fun = dnorm, fill = "grey80", xlim = c(limit, 3.5), alpha = .75) +
+    labs(x = "Z-score", y = "Density") + scale_x_continuous(breaks = limit) + 
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
+  } else {
+    p <- ggplot(data = NULL, aes(c(-3.8,3.8))) + theme_bw() + 
+      geom_area(stat = "function", fun = dnorm, fill = "grey80", xlim = c(-3.5, limit), alpha = .75) +
+      geom_area(stat = "function", fun = dnorm, fill = "#00998a", xlim = c(limit, 3.5), alpha = .75) +
+      labs(x = "Z-score", y = "Density") + scale_x_continuous(breaks = 2) +
+      theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
+  }
+  return(p)
+  }
+  if (n == 2) {
+    lower <- limit[1]
+    upper <- limit[2]
+    if (between){
+      p <- ggplot(data = NULL, aes(c(-3.8,3.8))) + theme_bw() + 
+        geom_area(stat = "function", fun = dnorm, fill = "#00998a", xlim = c(lower, upper), alpha = .75) +
+        geom_area(stat = "function", fun = dnorm, fill = "grey80", xlim = c(-3.5, lower), alpha = .75) +
+        geom_area(stat = "function", fun = dnorm, fill = "grey80", xlim = c(upper, 3.5), alpha = .75) +
+        labs(x = "Z-score", y = "Density") + scale_x_continuous(breaks = limit) + 
+        theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
+    } else {
+      p <- ggplot(data = NULL, aes(c(-3.8,3.8))) + theme_bw() + 
+        geom_area(stat = "function", fun = dnorm, fill = "grey80", xlim = c(lower, upper), alpha = .75) +
+        geom_area(stat = "function", fun = dnorm, fill = "#00998a", xlim = c(-3.5, lower), alpha = .75) +
+        geom_area(stat = "function", fun = dnorm, fill = "#00998a", xlim = c(upper, 3.5), alpha = .75) +
+        labs(x = "Z-score", y = "Density") + scale_x_continuous(breaks = limit) + 
+        theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
+    }
+  return(p)  
+  }
+}
+```
+
+Testing our function
+```{r}
+# test
+auc(1)
+auc(1, lower.tail = F)
+auc(c(0,1))
+auc(c(0,1),between = F)
+```
+
+
