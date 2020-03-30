@@ -1,6 +1,7 @@
 # https://mern.gouv.qc.ca/territoire/portrait/portrait-donnees-mille.jsp
 library(sf)
 qc <- read_sf("qc/region_admin_poly.shp")
+qc <- st_transform(qc, crs = 4326)
 
 library(rvest)
 library(dplyr)
@@ -24,7 +25,7 @@ mtl <- st_as_sf(mtl, coords = c("Long", 'Lat'), remove = FALSE,
 library(ggplot2)
 library(ggrepel)
 
-qc <- left_join(qc, covid %>% select(-Name))
+qc <- left_join(qc %>% select(RES_NM_REG, RES_CO_REG, geometry), covid %>% select(-Name))
 
 p <- ggplot() + geom_sf(data = qc, aes(fill = log10(Case))) + 
    scale_fill_viridis_c(labels = c(1, 10, 100, 1000)) + theme_bw() + 
@@ -50,3 +51,12 @@ p2 <- p + labs(title = "COVID-19 near Montreal",
 
 library(ggpubr)
 ggarrange(p1, p2, ncol = 2, common.legend = TRUE, legend = "bottom")
+
+### interactive
+library(tmap)
+# tmap_mode("plot")
+tmap_mode("view")
+tm_shape(qc) +  tm_polygons("Case", title = "COVID19 Case", 
+                            style = "fixed",
+                            breaks = c(1, 10, 100, 300, 1000, Inf),
+                            palette = 'viridis')
