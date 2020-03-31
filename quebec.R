@@ -58,5 +58,37 @@ library(tmap)
 tmap_mode("view")
 tm_shape(qc) +  tm_polygons("Case", title = "COVID19 Case", 
                             style = "fixed",
-                            breaks = c(1, 10, 100, 300, 1000, Inf),
-                            palette = 'viridis')
+                            breaks = c(1, 10, 100, 300, 1000, Inf)) +
+                tm_layout(aes.palette = list(seq = "-viridis"))
+              
+
+### montreal data and viz
+# http://donnees.ville.montreal.qc.ca/dataset/polygones-arrondissements
+mtl <- read_sf("limadmin-shp/LIMADMIN.shp")
+
+url <- 'https://santemontreal.qc.ca/en/public/coronavirus-covid-19/#c36391'
+cvmtl <- read_html(url) %>% html_nodes("table") %>% 
+                            html_table() %>% .[[1]] %>% 
+                            as_tibble() %>%
+                            slice(-c(n() - 1, n())) %>% 
+                            rename(NOM = 1, Case = 2) %>%
+                            mutate(NOM = str_replace(NOM,'\\*','')) %>%
+                            mutate(Case = str_replace_all(Case,',','')) %>%
+                            mutate_at('Case', as.integer) 
+
+cvmtl$NUM <- c(24, 9, 71, 7, 27, 72, 11, 1, 10, 3,
+               17, 18, 6, 23, 74, 16, 75, 2, 5, 13,
+               22, 8, 19, 25, 76, 15, 14, 77, 21, 12,
+               20, 26, 4)
+
+cvmtl <- cvmtl %>% select(-NOM)
+
+mtl <- mtl %>% select(NUM, NOM, TYPE) %>% left_join(cvmtl) %>% select(-NUM)
+
+library(tmap)
+# tmap_mode("plot")
+tmap_mode("view")
+tm_shape(mtl) +  tm_polygons("Case", title = "COVID19 Case", 
+                            style = "fixed",
+                            breaks = c(0, 10, 50, 100, 300, Inf)) +
+                            tm_layout(aes.palette = list(seq = "-viridis"))
