@@ -24,3 +24,5 @@ mix2 <- function(n, prob){
   x[idx == 3] <- runif(length(x[idx == 3]), -3, 3)
   return(x)
 }
+
+ggplot2::autoplot(microbenchmark::microbenchmark(mix1(n,p), mix2(n,p), times = 300))
