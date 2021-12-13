@@ -8,17 +8,23 @@ library(gridExtra)  # for plotting
 library(ggpubr)
 library(knitr)  # for formatting
 
+seed_teams <- c('Man City', 'Liverpool', 'Ajax', 'Real Madrid',
+                'Bayern', 'Man Utd', 'Lille', 'Juventus')
+seed_fa <- c('ENG', 'ENG', 'NED', 'ESP', 'GER', 'ENG', 'FRA', 'ITA')
+
+unseed_teams <- c('Paris', 'Atletico', 'Sporting CP', 'Inter',
+                  'Benfica', 'Villarreal', 'Salzburg', 'Chelsea')
+unseed_fa <- c('FRA', 'ESP', 'POR', 'ITA', 'POR', 'ESP', 'AUS', 'ENG')
+
 # get the data
 teams <- data.table(
-  team_f = c("Paris", "Bayern", "Man City", "Juventus", 
-             "Liverpool", "Barcelona", "Leipzig", "Valencia"),
+  team_f = seed_teams,
   team_f_id = 1L:8L,
-  team_f_a = c("FRA", "GER", "ENG", "ITA", "ENG", "ESP", "GER", "ESP"),
+  team_f_a = seed_fa,
   team_f_g = LETTERS[1:8],
-  team_s = c("Real Madrid", "Tottenham", "Atalanta", "Atl¨¦tico", 
-             "Napoli", "Dortmund", "Lyon", "Chelsea"),
+  team_s = unseed_teams,
   team_s_id = 9L:16L,
-  team_s_a = c("ESP", "ENG", "ITA", "ESP", "ITA", "GER", "FRA", "ENG"),
+  team_s_a = unseed_fa,
   team_s_g = LETTERS[1:8]
 )
 
@@ -107,10 +113,8 @@ for(i in 1:n){
 
 draw_prob_theoretical <- draw_matrix/n
 
-rownames(draw_prob_theoretical) <- c("Paris", "Bayern", "Man City", "Juventus", 
-                             "Liverpool", "Barcelona", "Leipzig", "Valencia")
-colnames(draw_prob_theoretical) <- c("Real Madrid", "Tottenham", "Atalanta", "Atl¨¦tico", 
-                             "Napoli", "Dortmund", "Lyon", "Chelsea")
+rownames(draw_prob_theoretical) <- seed_teams
+colnames(draw_prob_theoretical) <- unseed_teams
 
 
 # run N draws in parallel
@@ -124,9 +128,9 @@ clusterExport(cl, c("draws_sim", "SimulateDraw"))
 # replicate in parallel
 set.seed(1337)
 N <- 5 * 10^4
-system.time(sim_draws <- parSapply(cl, 1:N, function(x) {
+sim_draws <- parSapply(cl, 1:N, function(x) {
   SimulateDraw(draws_sim)
-}))
+})
 
 # stop the cluster and save
 stopCluster(cl)
@@ -160,16 +164,11 @@ for(i in 1:N){
 final_matrix <- Reduce('+', matrix_list)
 
 draw_prob_sim <- as.data.frame(final_matrix/N)
-rownames(draw_prob_sim) <- c("Paris", "Bayern", "Man City", "Juventus", 
-                          "Liverpool", "Barcelona", "Leipzig", "Valencia")
-colnames(draw_prob_sim) <- c("Real Madrid", "Tottenham", "Atalanta", "Atl¨¦tico", 
-                          "Napoli", "Dortmund", "Lyon", "Chelsea")
+rownames(draw_prob_sim) <- seed_teams
+colnames(draw_prob_sim) <- unseed_teams
 
 # ploting results
-draw_df <- expand.grid(c("Paris", "Bayern", "Man City", "Juventus", 
-                         "Liverpool", "Barcelona", "Leipzig", "Valencia"),
-                       c("Real Madrid", "Tottenham", "Atalanta", "Atl¨¦tico", 
-                          "Napoli", "Dortmund", "Lyon", "Chelsea"))
+draw_df <- expand.grid(seed_teams,unseed_teams)
 
 draw_df <- data.frame(draw_df, c(final_matrix/N))
 colnames(draw_df) <- c('home', 'away', 'prob')
@@ -197,5 +196,5 @@ p_real <- ggtexttable(round(draw_prob_sim,3),
             )
 )
 
-
+ggsave(filename = 'cl.png', plot = p_real, dpi = 300)
 
