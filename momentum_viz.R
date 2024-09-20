@@ -2,7 +2,8 @@
 # https://theanalyst.com/na/2021/11/what-is-match-momentum
 # https://theanalyst.com/eu/2021/03/what-is-possession-value/
 # use "Inspect" from the browser (Chrome/Edge) to obtain momentum data from fotmob
-
+# for alternative method, we can use json to download information from fotmob, see
+# https://github.com/Rodolsky/Match_Momentum_Scraping/blob/main/Match_Momentum_FotMob.ipynb
 
 library(ggplot2)
 library(ggformula)
@@ -14,6 +15,9 @@ library(highcharter)
 library(httr2)
 
 # method 1
+# this method, need to go to the match webpage, and use 'inspect' to retrive momentum data
+# some manipulation of the data is required before plotting
+# the data is interpolated and interval is 20 second
 
 dat <- read.table(file.choose(), quote="\"", comment.char="")
 df <- data.frame(mm = t(dat))
@@ -27,7 +31,6 @@ match <- df %>% slice(7:651) %>%  filter(mm != 'C') %>% filter(row_number() %% 2
   relocate(index, .before = 1)
 
 forest <- match
-
 save(forest, file = 'md04_h_forest.rda')
 
 # Assuming `milan` is a data frame with a column `adj`
@@ -48,60 +51,66 @@ save(forest, file = 'md04_h_forest.rda')
 
 match <- ipswich
 
-# away game
-p <- ggplot(match, aes(x = index/3, y = adj)) +
-  geom_ribbon(aes(ymax = pmax(adj, 0), ymin = 0), fill = 'blue4', alpha = 0.5) +
-  geom_ribbon(aes(ymax = 0, ymin = pmin(0, adj)), fill = 'red4', alpha = 0.5) +
-  labs(x = "Minutes", y = "Momentum", title = "Match Momentum") +
-  theme(legend.title = element_blank(),  axis.ticks.y=element_blank()) + 
-  coord_fixed(ratio = 1/3) + theme_minimal()
+plt_mm <- function(match, rival, home = TRUE){
+  
+  if (home){
+    # home game
+    ttl <- paste('Match Momentum for Liverpool vs', rival)
+    p <- ggplot(match, aes(x = index/3, y = adj)) +
+      geom_ribbon(aes(ymax = pmax(adj, 0), ymin = 0), fill = 'red4', alpha = 0.5) +
+      geom_ribbon(aes(ymax = 0, ymin = pmin(0, adj)), fill = 'darkblue', alpha = 0.5) +
+      ggtitle(ttl)
+  } else {
+    # away game
+    ttl <- paste('Match Momentum for', rival, 'vs Liverpool')
+    p <- ggplot(match, aes(x = index/3, y = adj)) +
+      geom_ribbon(aes(ymax = pmax(adj, 0), ymin = 0), fill = 'blue4', alpha = 0.5) +
+      geom_ribbon(aes(ymax = 0, ymin = pmin(0, adj)), fill = 'red4', alpha = 0.5) +
+      ggtitle(ttl)
+  }
+  p <- p + labs(x = "Minutes", y = "Momentum") +
+    theme(legend.title = element_blank(),  axis.ticks.y=element_blank()) + 
+    coord_fixed(ratio = 1/3) + theme_minimal()
+  
+  return(p)
+}
 
-# home game
-p <- ggplot(match, aes(x = index/3, y = adj)) +
-  geom_ribbon(aes(ymax = pmax(adj, 0), ymin = 0), fill = 'red4', alpha = 0.5) +
-  geom_ribbon(aes(ymax = 0, ymin = pmin(0, adj)), fill = 'darkblue', alpha = 0.5) +
-  labs(x = "Minutes", y = "Momentum", title = "Match Momentum vs Brentford") +
-  theme(legend.title = element_blank(),  axis.ticks.y=element_blank()) + 
-  coord_fixed(ratio = 1/3) + theme_minimal()
 
-p
+p1 <- plt_mm(match = milan, rival = 'Milan', home = FALSE)
 
-# p1/p2/p3
-
-ggsave(filename = 'mm.svg', plot = p, dpi = 300, height = 3, width = 7, units = 'in')
+ggsave(filename = 'milan_m1.jpg', plot = p1, dpi = 300, height = 4, width = 9, units = 'in')
 
 # method 2
+# this method use fotmob api to obtain json format info, more data can be use
+# momentum data is not interpolated, interval is 1 min
 
 plt_mt <- function(url){
   mid <- substr(url, nchar(url) - 7 + 1, nchar(url))
   url_json <- paste0('https://www.fotmob.com/api/matchDetails?matchId=', mid)
-  
-  match <- sub(".*/matches/([^/]+)/.*", "\\1", url)
-  team <- strsplit(match, "-vs-")[[1]]
-  team <- gsub("-", " ", team)
-  team <- sapply(team, tools::toTitleCase)
   
   match_detail <- url_json %>% 
     request() %>% 
     req_perform() %>% 
     resp_body_json(simplifyVector = T)
   
-  dt <- substr(match_detail$general$matchTimeUTCDate, 1, 10)
+  team <- match_detail$header$teams$name
   league <- match_detail$general$leagueName
+  rd <- paste('Match Day', match_detail$general$matchRound)
+  dt <- substr(match_detail$general$matchTimeUTCDate, 1, 10)
   
   ttl <- paste('Match Momentum for', team[1], 'vs', team[2])
-  sttl <- paste0(league, ', ', dt)
+  sttl <- paste0(league,', ', rd, ', ' , dt)
   
-  momentum <- match_detail$content$momentum$main$data
-  y_lim <- range(momentum$value) * 1.05
+  mt <- match_detail$content$momentum$main$data
+  y_lim <- range(mt$value) * 1.05
   
   
   if(team[1] == 'Liverpool')
-    p <- ggplot(momentum, aes(x = minute, y = value)) +
+    p <- ggplot(mt, aes(x = minute, y = value)) +
     geom_ribbon(aes(ymax = pmax(value, 0), ymin = 0), fill = 'red4', alpha = 0.65) +
     geom_ribbon(aes(ymax = 0, ymin = pmin(0, value)), fill = 'blue4', alpha = 0.65)
   else
-    p <- ggplot(momentum, aes(x = minute, y = value)) +
+    p <- ggplot(mt, aes(x = minute, y = value)) +
     geom_ribbon(aes(ymax = pmax(value, 0), ymin = 0), fill = 'blue4', alpha = 0.65) +
     geom_ribbon(aes(ymax = 0, ymin = pmin(0, value)), fill = 'red4', alpha = 0.65)
   
@@ -118,38 +127,11 @@ url <- 'https://www.fotmob.com/matches/milan-vs-liverpool/2g7yzv#4621552'
 url <- 'https://www.fotmob.com/matches/liverpool-vs-brentford/2uusjv#4506278'
 url <- 'https://www.fotmob.com/matches/liverpool-vs-manchester-united/2ygkcb#4506289'
 
-plt_mt(url)
-
-# some helper function
-get_mt <- function(url){
-  mid <- substr(url, nchar(url) - 7 + 1, nchar(url))
-  url_json <- paste0('https://www.fotmob.com/api/matchDetails?matchId=', mid)
-
-  match_detail <- url_json %>% 
-    request() %>% 
-    req_perform() %>% 
-    resp_body_json(simplifyVector = T)
-  
-  momentum <- match_detail$content$momentum$main$data
-  
-  return(momentum)
-}
-
-mu <- get_mt(url)
-
-get_md <- function(url){
-  mid <- substr(url, nchar(url) - 7 + 1, nchar(url))
-  url_json <- paste0('https://www.fotmob.com/api/matchDetails?matchId=', mid)
-  
-  match_detail <- url_json %>% 
-    request() %>% 
-    req_perform() %>% 
-    resp_body_json(simplifyVector = T)
-  
-  return(match_detail)
-}
+p2 <- plt_mt(url)
+ggsave(filename = 'milan_m2.jpg', plot = p2, dpi = 300, height = 4, width = 9, units = 'in')
 
 # method 3, highcharter solution
+# by far the best solution
 
 plt_hcmt <- function(url){
   
@@ -199,9 +181,10 @@ plt_hcmt <- function(url){
       tickPositions = seq(15, 90, by = 15),
       labels = list(format = "{value}")
     ) %>%
-    hc_chart(backgroundColor = "white") %>%
-    hc_exporting(enabled = TRUE, type = "image/jpeg"
-    #  type = "image/svg+xml"
+    hc_chart(backgroundColor = "white") %>% 
+    #         , width = 960, height = 600)  %>% 
+    hc_exporting(enabled = TRUE, # type = "image/jpeg"
+    type = "image/svg+xml"
     )
   
   # Save the plot as an HTML file
@@ -218,4 +201,31 @@ plt_hcmt <- function(url){
 
 plt_hcmt(url)
 
+# some helper function
+get_mt <- function(url){
+  mid <- substr(url, nchar(url) - 7 + 1, nchar(url))
+  url_json <- paste0('https://www.fotmob.com/api/matchDetails?matchId=', mid)
+  
+  match_detail <- url_json %>% 
+    request() %>% 
+    req_perform() %>% 
+    resp_body_json(simplifyVector = T)
+  
+  momentum <- match_detail$content$momentum$main$data
+  
+  return(momentum)
+}
 
+mu <- get_mt(url)
+
+get_md <- function(url){
+  mid <- substr(url, nchar(url) - 7 + 1, nchar(url))
+  url_json <- paste0('https://www.fotmob.com/api/matchDetails?matchId=', mid)
+  
+  match_detail <- url_json %>% 
+    request() %>% 
+    req_perform() %>% 
+    resp_body_json(simplifyVector = T)
+  
+  return(match_detail)
+}
