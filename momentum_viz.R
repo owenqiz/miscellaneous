@@ -3,11 +3,14 @@
 # https://theanalyst.com/eu/2021/03/what-is-possession-value/
 # use "Inspect" from the browser (Chrome/Edge) to obtain momentum data from fotmob
 
-library(dplyr)
+
 library(ggplot2)
 library(ggformula)
 library(tidyr)
 library(patchwork)
+
+library(dplyr)
+library(highcharter)
 library(httr2)
 
 # method 1
@@ -116,3 +119,103 @@ url <- 'https://www.fotmob.com/matches/liverpool-vs-brentford/2uusjv#4506278'
 url <- 'https://www.fotmob.com/matches/liverpool-vs-manchester-united/2ygkcb#4506289'
 
 plt_mt(url)
+
+# some helper function
+get_mt <- function(url){
+  mid <- substr(url, nchar(url) - 7 + 1, nchar(url))
+  url_json <- paste0('https://www.fotmob.com/api/matchDetails?matchId=', mid)
+
+  match_detail <- url_json %>% 
+    request() %>% 
+    req_perform() %>% 
+    resp_body_json(simplifyVector = T)
+  
+  momentum <- match_detail$content$momentum$main$data
+  
+  return(momentum)
+}
+
+mu <- get_mt(url)
+
+get_md <- function(url){
+  mid <- substr(url, nchar(url) - 7 + 1, nchar(url))
+  url_json <- paste0('https://www.fotmob.com/api/matchDetails?matchId=', mid)
+  
+  match_detail <- url_json %>% 
+    request() %>% 
+    req_perform() %>% 
+    resp_body_json(simplifyVector = T)
+  
+  return(match_detail)
+}
+
+# method 3, highcharter solution
+
+plt_hcmt <- function(url){
+  
+  mid <- substr(url, nchar(url) - 7 + 1, nchar(url))
+  url_json <- paste0('https://www.fotmob.com/api/matchDetails?matchId=', mid)
+  
+  match_detail <- url_json %>% 
+    request() %>% 
+    req_perform() %>% 
+    resp_body_json(simplifyVector = T)
+  
+  match <- match_detail$content$momentum$main$data
+  
+  team <- match_detail$header$teams$name
+  league <- match_detail$general$leagueName
+  rd <- paste('Match Day', match_detail$general$matchRound)
+  dt <- substr(match_detail$general$matchTimeUTCDate, 1, 10)
+  
+  ttl <- paste('Match Momentum for', team[1], 'vs', team[2])
+  sttl <- paste0(league,', ', rd, ', ' , dt)
+  
+  if(team[1] == 'Liverpool'){
+  plt <- match %>% 
+    hchart(type = "areaspline", hcaes(x = minute, y = value)) %>% 
+    hc_plotOptions(areaspline = list(
+      zones = list(
+        list(value = 0, color = "blue4", fillColor = "rgba(0, 76, 153, 0.65)"),  # Negative values
+        list(color = "red4", fillColor = "rgba(180, 0, 0, 0.65)")           # Positive values
+      )
+    ))
+  } else {
+  plt <-   match %>% 
+      hchart(type = "areaspline", hcaes(x = minute, y = value)) %>% 
+      hc_plotOptions(areaspline = list(
+        zones = list(
+          list(value = 0, color = "red4", fillColor = "rgba(180, 0, 0, 0.65)"),  # Negative values
+          list(color = "blue4", fillColor = "rgba(0, 76, 153, 0.65)")           # Positive values
+        )
+      ))
+  }
+  
+  plt %>% hc_tooltip(enabled = FALSE) %>%
+    hc_title(text = ttl) %>% 
+    hc_subtitle(text = sttl) %>%
+    hc_yAxis(visible = FALSE) %>%
+    hc_xAxis(
+      tickPositions = seq(15, 90, by = 15),
+      labels = list(format = "{value}")
+    ) %>%
+    hc_chart(backgroundColor = "white") %>%
+    hc_exporting(enabled = TRUE, type = "image/jpeg"
+    #  type = "image/svg+xml"
+    )
+  
+  # Save the plot as an HTML file
+  # html_file <- "temp_plot.html"
+  # saveWidget(plt, file = html_file, selfcontained = TRUE)
+  
+  # Automatically save the plot as a JPG
+  # jpg_file <- "exported_plot.jpg"
+  # webshot(html_file, file = jpg_file, delay = 3, vwidth = 800, vheight = 600)
+  
+  # Optionally, remove the temporary HTML file
+  # file.remove(html_file)
+}
+
+plt_hcmt(url)
+
+
