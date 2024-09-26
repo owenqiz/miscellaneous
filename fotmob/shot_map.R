@@ -192,13 +192,18 @@ plot_player_shot <- function(player_df, all_path = FALSE){
 player <- get_player_season_shot('https://www.fotmob.com/players/737066/erling-haaland')
 plot_player_shot(player_df = player, all_path = T)
 
-plot_team_shot_on_goal <- function(mid_url_lst, home = TRUE){
+plot_team_shot_on_goal <- function(mid_url_lst, home = TRUE, block = FALSE){
   
+  if(is.list(mid_url_lst)){
+  match_detail <- mid_url_lst
+  } else{
   match_detail <- get_match(mid_url_lst)
+  }
+  
   st <- get_team_shot_table(match_detail)
   
   st2 <- st %>% select(playerName,lastName, eventType, min, teamId, playerName,
-                isBlocked, isOnTarget) %>% 
+                       isBlocked, isOnTarget) %>% 
     mutate(label = paste0(lastName,', ', min, 'min'))
   st2 <- tibble(st2, st %>% select(onGoalShot) %>% purrr::reduce(data.frame))
   
@@ -217,18 +222,22 @@ plot_team_shot_on_goal <- function(mid_url_lst, home = TRUE){
   home_name <- match_detail$general$homeTeam$name
   
   if(home){
-    st <- st2 %>% filter(teamId == home_id & zoomRatio == 1) %>% filter(!isBlocked)
+    st <- st2 %>% filter(teamId == home_id & zoomRatio == 1)
   } else {
-    st <- st2 %>% filter(teamId != home_id & zoomRatio == 1) %>% filter(!isBlocked)
+    st <- st2 %>% filter(teamId != home_id & zoomRatio == 1)
   }
   
-  p <- ggplot(st, aes(x, y, label = label, colour = eventType)) + 
+  if(block == FALSE)
+    st <- st %>% filter(!isBlocked)
+  
+  p <- ggplot(st, aes(x, y, label = label, colour = eventType, shape = isBlocked)) + 
     geom_segment(aes(x = 0, y = 0, xend = 0, yend = .65), linewidth = 2, colour = 'black') + 
     geom_segment(aes(x = 2, y = 0, xend = 2, yend = .65), linewidth = 2, colour = 'black') + 
     geom_segment(aes(x = 0, y = .65, xend = 2, yend = .65), linewidth = 2, colour = 'black') + 
     geom_segment(aes(x = -.15, y = 0, xend = 2.15, yend = 0), linetype = 'dashed', colour = '#2E8B57') + 
-    geom_point(size = 5) + geom_text(nudge_y = .05) + 
+    geom_point(size = 3, stroke = 2) + geom_text(nudge_y = .05) + 
     scale_colour_manual(values = c('#004C99', '#B40000', '#004C99')) + 
+    scale_shape_manual(values = c(16, 4)) + 
     ggtitle(ttl, subtitle = sttl) + 
     coord_equal() + 
     theme_void() + 
@@ -238,24 +247,64 @@ plot_team_shot_on_goal <- function(mid_url_lst, home = TRUE){
   return(p)
 }
 
-plot_team_shot_on_goal(mid_url_lst, home = F)
+plot_team_shot_on_goal(mid_url_lst, home = F, block = T)
 
-ft<- ot[[2]]
-min_ratio <- min(ft$zoomRatio)
-# wrong, should use 1 - x to find the position
-ft2 <- ft %>% mutate(x = x/zoomRatio*min_ratio + 1, y = y/zoomRatio*min_ratio)
-maxd <- max(abs(ft2$x-1))
+plot_team_shot_onff_goal <- function(mid_url_lst, home = TRUE, block = FALSE){
+  
+  if(is.list(mid_url_lst)){
+    match_detail <- mid_url_lst
+  } else{
+    match_detail <- get_match(mid_url_lst)
+  }
+  
+  st <- get_team_shot_table(match_detail)
+  
+  st2 <- st %>% select(playerName,lastName, eventType, min, teamId, playerName,
+                       isBlocked, isOnTarget) %>% 
+    mutate(label = paste0(lastName,', ', min, 'min'))
+  st2 <- tibble(st2, st %>% select(onGoalShot) %>% purrr::reduce(data.frame))
+  
+  team <- match_detail$header$teams$name
+  tname <- ifelse(home, team[1], team[2])
+  otname <- ifelse(home, team[2], team[1])
+  league <- match_detail$general$leagueName
+  season <- match_detail$general$parentLeagueSeason
+  rd <- paste('Match Day', match_detail$general$matchRound)
+  dt <- substr(match_detail$general$matchTimeUTCDate, 1, 10)
+  
+  ttl <- paste(tname, 'all shots vs', otname)
+  sttl <- paste0(season, ' ', league,', ', rd, ', ' , dt)
+  
+  home_id <- match_detail$general$homeTeam$id
+  home_name <- match_detail$general$homeTeam$name
+  
+  if(home){
+    st <- st2 %>% filter(teamId == home_id)
+  } else {
+    st <- st2 %>% filter(teamId != home_id)
+  }
+  
+  if(block == FALSE)
+    st <- st %>% filter(!isBlocked)
+  
+  r <- min(st$zoomRatio)
+  st <- st %>% mutate(cx = r*(x - 1)/zoomRatio + 1, cy = r * y/zoomRatio)
 
+  p <- ggplot(st, aes(x = cx, y = cy, label = lastName, colour = eventType, shape = isBlocked)) + 
+    geom_segment(aes(x = 1 - r, y = 0, xend = 1 - r, yend = .65 * r), linewidth = 2, colour = 'black') + 
+    geom_segment(aes(x = 1 + r, y = 0, xend = 1 + r, yend = .65 * r), linewidth = 2, colour = 'black') + 
+    geom_segment(aes(x = 1 - r, y = .65 * r, xend = 1 + r, yend = .65 * r), linewidth = 2, colour = 'black') + 
+    geom_point(size = 2, stroke = 2) + geom_text(nudge_y = .1 * r) + 
+    scale_colour_manual(values = c('#004C99', '#B40000', '#004C99', '#004C99')) + 
+    geom_segment(aes(x = -0.1, y = 0, xend = 2.1, yend = 0), linetype = 'dashed', colour = '#2E8B57') + 
+    scale_shape_manual(values = c(16, 4)) + 
+    ggtitle(ttl, subtitle = sttl) + 
+    coord_equal() + 
+    theme_void() + 
+    theme(plot.title = element_text(hjust = 0.5),   # Center title
+          plot.subtitle = element_text(hjust = 0.5),# Center subtitle
+          legend.position = 'none')
+  return(p)
+}
 
-ggplot(ft2, aes(x, y, label = lastName, colour = eventType)) + 
-  geom_segment(aes(x = 1 - min_ratio, y = 0, xend = 1 - min_ratio, yend = .65 * min_ratio), linewidth = 2, colour = 'black') + 
-  geom_segment(aes(x = 1 + min_ratio, y = 0, xend = 1 + min_ratio, yend = .65 * min_ratio), linewidth = 2, colour = 'black') + 
-  geom_segment(aes(x = 1 - min_ratio, y = .65 * min_ratio, xend = 1 + min_ratio, yend = .65 * min_ratio), linewidth = 2, colour = 'black') + 
-  geom_point(size = 5) + geom_text(nudge_y = .07 * min_ratio) + 
-  scale_colour_manual(values = c('#004C99', '#B40000', '#004C99', '#004C99')) +
-  xlim(1 - maxd, 1 + maxd) + 
-  coord_equal() + 
-  theme_minimal() + 
-  theme(legend.position = 'none')
-
-# plot_player_shot_goal
+plot_team_shot_onff_goal(4621552, F, T)
